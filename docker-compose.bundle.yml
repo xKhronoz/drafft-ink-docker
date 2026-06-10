@@ -1,0 +1,19 @@
+services:
+  drafftink:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: bundled
+    image: drafftink-docker:local
+    container_name: drafftink
+    ports:
+      - "8000:8000"
+    environment:
+      RUST_LOG: drafftink_server=info,tower_http=info
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
