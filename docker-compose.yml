@@ -6,8 +6,8 @@ services:
       target: server
     image: drafftink-server:local
     container_name: drafftink-server
-    ports:
-      - "3030:3030"
+    expose:
+      - "3030"
     environment:
       RUST_LOG: drafftink_server=info,tower_http=info
     restart: unless-stopped
@@ -17,6 +17,12 @@ services:
       timeout: 3s
       retries: 3
       start_period: 5s
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.drafftink-ws.rule=PathPrefix(`/ws`)
+      - traefik.http.routers.drafftink-ws.entrypoints=web
+      - traefik.http.routers.drafftink-ws.priority=100
+      - traefik.http.services.drafftink-server.loadbalancer.server.port=3030
 
   drafftink-web:
     build:
@@ -25,8 +31,8 @@ services:
       target: web
     image: drafftink-web:local
     container_name: drafftink-web
-    ports:
-      - "8080:8080"
+    expose:
+      - "8080"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080"]
@@ -34,3 +40,9 @@ services:
       timeout: 3s
       retries: 3
       start_period: 5s
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.drafftink-web.rule=PathPrefix(`/`)
+      - traefik.http.routers.drafftink-web.entrypoints=web
+      - traefik.http.routers.drafftink-web.priority=1
+      - traefik.http.services.drafftink-web.loadbalancer.server.port=8080
