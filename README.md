@@ -10,6 +10,8 @@ The Dockerfile is structured in multiple stages to optimize the build process. I
 
 On `amd64` and `arm64`, the build downloads the matching prebuilt `wasm-bindgen` release archive for that lockfile version. On `arm`/`armv7`/`armv6`, it falls back to `cargo install wasm-bindgen-cli` with the same lockfile-derived version.
 
+Note: This wasm-bindgen-cli install step is necessary of how the rust based alpine splits the headers in the base docker image and the `wasm-bindgen` releases only provide prebuilt binaries for `amd64` and `arm64`, and the `cargo install` fallback is necessary to support the older ARM architectures.
+
 ## Docker Compose
 
 The Docker Compose configuration defines the services required to run the Drafft.ink application. The backend web server and the static web app are kept on the internal network, and two runnable reverse-proxy examples are provided so both the web app and the collaboration WebSocket can share one origin.
@@ -27,8 +29,16 @@ To build and run the application using Docker Compose, follow these steps:
 
 2. Build the Docker images:
 
+   Via the default `docker-compose.yml`:
+
    ```bash
    docker compose build
+   ```
+
+   Via the Dockerfile directly:
+
+   ```bash
+   docker build -t drafft-ink:local .
    ```
 
 3. Start the nginx proxy example:
@@ -43,7 +53,7 @@ To build and run the application using Docker Compose, follow these steps:
    docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
    ```
 
-4. Access the application in your web browser at `http://localhost:8080`.
+4. Access the application in your web browser at `http://localhost:8000`.
 
 The collaboration WebSocket stays on the same origin and is served from `/ws`, so the default client path works without a separate host or port.
 
