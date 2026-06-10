@@ -1,0 +1,36 @@
+services:
+  drafftink-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: server
+    image: drafftink-server:local
+    container_name: drafftink-server
+    ports:
+      - "3030:3030"
+    environment:
+      RUST_LOG: drafftink_server=info,tower_http=info
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3030/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  drafftink-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: web
+    image: drafftink-web:local
+    container_name: drafftink-web
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
