@@ -1,73 +1,103 @@
 # Drafft.ink Docker
 
-## Unofficial Docker configuration for Drafft.ink
+Unofficial Docker images, compose overlays, and CI workflows for building and running [Drafft.ink](https://github.com/PatWie/drafft-ink).
 
-This repository contains the Dockerfile and Docker Compose configuration for building and running the Drafft.ink application in a containerized environment.
+## What’s Included
 
-## Dockerfile
+- A multi-stage [Dockerfile](Dockerfile) for the Rust server and the WASM web build.
+- A base [docker-compose.yml](docker-compose.yml) file for the app services.
+- Reverse proxy examples for [nginx](docker-compose.nginx.yml) and [traefik](docker-compose.traefik.yml).
+- GitHub Actions workflows for Docker validation and DockerHub publishing.
 
-The Dockerfile is structured in multiple stages to optimize the build process. It starts with a base image of Rust on Alpine Linux, installs the build dependencies it needs, and then builds the web application using wasm-pack. The `wasm-bindgen-cli` version is resolved from the upstream Drafft.ink `Cargo.lock` file during the build so the pinned version stays aligned with the source repository.
+## Build Strategy
 
-On `amd64` and `arm64`, the build downloads the matching prebuilt `wasm-bindgen` release archive for that lockfile version. On `arm`/`armv7`/`armv6`, it falls back to `cargo install wasm-bindgen-cli` with the same lockfile-derived version.
+The build resolves the `wasm-bindgen-cli` version from the upstream Drafft.ink `Cargo.lock` file so the pinned version stays aligned with the source repository.
 
-Note: This wasm-bindgen-cli install step is necessary of how the rust based alpine splits the headers in the base docker image and the `wasm-bindgen` releases only provide prebuilt binaries for `amd64` and `arm64`, and the `cargo install` fallback is necessary to support the older ARM architectures.
+- `amd64` and `arm64` use the matching prebuilt `wasm-bindgen` release archive.
+- `arm`, `armv6`, and `armv7` fall back to `cargo install wasm-bindgen-cli` with the same lockfile-derived version.
 
-## Docker Compose
+The final runtime images run as a non-root `appuser`.
 
-The Docker Compose configuration defines the services required to run the Drafft.ink application. The backend web server and the static web app are kept on the internal network, and two runnable reverse-proxy examples are provided so both the web app and the collaboration WebSocket can share one origin.
+## Quick Start
 
-## Building and Running
+Clone the repository:
 
-To build and run the application using Docker Compose, follow these steps:
+```bash
+git clone https://github.com/xkhronoz/drafft-ink-docker.git
+cd drafft-ink-docker
+```
 
-1. Clone the repository:
+Build the app images:
 
-   ```bash
-   git clone https://github.com/xkhronoz/drafft-ink-docker.git
-   cd drafft-ink-docker
-   ```
+```bash
+docker compose build
+```
 
-2. Build the Docker images:
+Start the nginx example:
 
-   Via the default `docker-compose.yml`:
+```bash
+docker compose -f docker-compose.yml -f docker-compose.nginx.yml up -d
+```
 
-   ```bash
-   docker compose build
-   ```
+Or start the traefik example:
 
-   Via the Dockerfile directly:
+```bash
+docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
+```
 
-   ```bash
-   docker build -t drafft-ink:local .
-   ```
+Open the app at:
 
-3. Start the nginx proxy example:
+```text
+http://localhost:8000
+```
 
-   ```bash
-   docker compose -f docker-compose.yml -f docker-compose.nginx.yml up -d
-   ```
+The collaboration WebSocket stays on the same origin and is served from `/ws`.
 
-   Or start the traefik proxy example:
+## Direct Docker Builds
 
-   ```bash
-   docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
-   ```
+If you want to build the images without compose:
 
-4. Access the application in your web browser at `http://localhost:8000`.
+```bash
+docker build --target server -t drafft-ink-server:local .
+docker build --target web -t drafft-ink-web:local .
+```
 
-The collaboration WebSocket stays on the same origin and is served from `/ws`, so the default client path works without a separate host or port.
+## CI and Publishing
+
+### Docker CI
+
+The [Docker CI workflow](.github/workflows/docker-ci.yml) runs on pull requests, pushes to `main`, and manual dispatches. It:
+
+- validates the nginx compose overlay,
+- validates the traefik compose overlay,
+- builds the `drafftink-server` and `drafftink-web` targets.
+
+### DockerHub Publishing
+
+The [publish workflow](.github/workflows/dockerhub-publish.yml) runs on `v*` tags and manual dispatch.
+
+It publishes these images:
+
+- `docker.io/<DOCKERHUB_USERNAME>/drafft-ink-docker:server`
+- `docker.io/<DOCKERHUB_USERNAME>/drafft-ink-docker:server-latest`
+- `docker.io/<DOCKERHUB_USERNAME>/drafft-ink-docker:web`
+- `docker.io/<DOCKERHUB_USERNAME>/drafft-ink-docker:web-latest`
+
+Required repository secrets:
+
+- `DOCKERHUB_USERNAME`
+- `DOCKERHUB_TOKEN`
 
 ## Notes
 
-- This Docker configuration is unofficial and may not be maintained. It is intended for development and testing purposes.
-- Ensure that you have Docker and Docker Compose installed on your system before running the commands.
-- For any issues or contributions, please refer to the original Drafft.ink repository or create a pull request in this repository.
-
-## License
-
-This project is licensed under the AGPLv3 License. See the [LICENSE](LICENSE) file for details.
+- The nginx and traefik overlays both expose a single external port for web and WebSocket traffic.
+- This repository is unofficial and intended for development and testing.
+- If you run into issues, compare your setup against the upstream [Drafft.ink repository](https://github.com/PatWie/drafft-ink).
 
 ## Acknowledgments
 
 - [Patwie](https://github.com/PatWie) and [drafft-ink](https://github.com/PatWie/drafft-ink/tree/main) project for creating the original application.
-- The Docker community for providing tools and resources for containerization.
+
+## License
+
+This project is licensed under the AGPLv3 License. See [LICENSE](LICENSE) for details.
