@@ -68,9 +68,6 @@ FROM base AS web-builder
 
 ARG TARGETARCH
 
-# Enable Debug Logging for WebAssembly Builds
-ENV RUST_LOG=debug
-
 RUN rustup target add wasm32-unknown-unknown
 
 RUN cargo install wasm-pack --locked
