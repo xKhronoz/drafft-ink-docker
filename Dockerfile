@@ -1,3 +1,5 @@
+## syntax=docker/dockerfile:1.7
+
 ARG DRAFFTINK_REPO=https://github.com/PatWie/drafft-ink.git
 ARG DRAFFTINK_REF=main
 ARG DRAFFTINK_SHA=
@@ -5,13 +7,19 @@ ARG IMAGE_VERSION=dev
 ARG SOURCE_REPOSITORY=https://github.com/xkhronoz/drafft-ink-docker
 ARG UPSTREAM_REPOSITORY=https://github.com/PatWie/drafft-ink
 
-FROM rust:alpine3.23 AS base
+FROM rust:alpine3.23 AS rust-base
+
+ENV CARGO_HOME=/usr/local/cargo \
+    RUSTUP_HOME=/usr/local/rustup \
+    CARGO_NET_GIT_FETCH_WITH_CLI=true
+
+RUN apk add --no-cache build-base git musl-dev pkgconfig ca-certificates curl tar
+
+FROM rust-base AS source
 
 ARG DRAFFTINK_REPO
 ARG DRAFFTINK_REF
 ARG DRAFFTINK_SHA
-
-RUN apk add --no-cache build-base git musl-dev pkgconfig ca-certificates curl tar
 
 WORKDIR /usr/src
 
@@ -28,9 +36,19 @@ RUN set -eux; \
 
 WORKDIR /usr/src/drafft-ink
 
-FROM base AS server-builder
+FROM rust-base AS server-builder
 
-RUN cargo build --release -p drafftink-server
+ARG TARGETPLATFORM
+
+WORKDIR /usr/src/drafft-ink
+
+COPY --link --from=source /usr/src/drafft-ink /usr/src/drafft-ink
+
+RUN --mount=type=cache,id=cargo-registry-${TARGETPLATFORM},target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=cargo-git-${TARGETPLATFORM},target=/usr/local/cargo/git,sharing=locked \
+    --mount=type=cache,id=cargo-target-server-${TARGETPLATFORM},target=/usr/src/server-target,sharing=locked \
+    CARGO_TARGET_DIR=/usr/src/server-target cargo build --release -p drafftink-server \
+    && install -Dm755 /usr/src/server-target/release/drafftink-server /usr/local/bin/drafftink-server
 
 FROM alpine:3.23 AS server
 
@@ -51,7 +69,7 @@ LABEL org.opencontainers.image.title="drafft.ink server" \
     org.opencontainers.image.url="${SOURCE_REPOSITORY}" \
     io.drafftink.upstream-repository="${UPSTREAM_REPOSITORY}"
 
-COPY --from=server-builder --chown=appuser:appuser /usr/src/drafft-ink/target/release/drafftink-server /usr/local/bin/drafftink-server
+COPY --link --from=server-builder /usr/local/bin/drafftink-server /usr/local/bin/drafftink-server
 
 USER appuser
 
@@ -64,15 +82,26 @@ ENV RUST_LOG=drafftink_server=info,tower_http=info
 
 CMD ["drafftink-server"]
 
-FROM base AS web-builder
+FROM rust-base AS web-toolchain
 
+ARG TARGETPLATFORM
 ARG TARGETARCH
+
+WORKDIR /tmp
 
 RUN rustup target add wasm32-unknown-unknown
 
-RUN cargo install wasm-pack --locked
+RUN --mount=type=cache,id=cargo-registry-${TARGETPLATFORM},target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=cargo-git-${TARGETPLATFORM},target=/usr/local/cargo/git,sharing=locked \
+    --mount=type=cache,id=cargo-target-tools-${TARGETPLATFORM},target=/usr/src/target-tools,sharing=locked \
+    CARGO_TARGET_DIR=/usr/src/target-tools cargo install wasm-pack --locked
 
-RUN set -eux; \
+COPY --link --from=source /usr/src/drafft-ink/Cargo.lock /tmp/Cargo.lock
+
+RUN --mount=type=cache,id=cargo-registry-${TARGETPLATFORM},target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=cargo-git-${TARGETPLATFORM},target=/usr/local/cargo/git,sharing=locked \
+    --mount=type=cache,id=cargo-target-tools-${TARGETPLATFORM},target=/usr/src/target-tools,sharing=locked \
+    set -eux; \
     wasm_bindgen_version="$(awk 'BEGIN { found=0 } $0 == "name = \"wasm-bindgen\"" { found=1; next } found && $1 == "version" { gsub(/\"/, "", $3); print $3; exit }' Cargo.lock)"; \
     test -n "$wasm_bindgen_version"; \
     case "${TARGETARCH:-$(uname -m)}" in \
@@ -97,7 +126,7 @@ RUN set -eux; \
     done; \
     ;; \
     arm|armv6*|armv7*) \
-    cargo install wasm-bindgen-cli --version "${wasm_bindgen_version}" --locked; \
+    CARGO_TARGET_DIR=/usr/src/target-tools cargo install wasm-bindgen-cli --version "${wasm_bindgen_version}" --locked; \
     ;; \
     *) \
     echo "Unsupported architecture for wasm-bindgen-cli install: ${TARGETARCH:-$(uname -m)}" >&2; \
@@ -105,8 +134,18 @@ RUN set -eux; \
     ;; \
     esac
 
-RUN cd crates/drafftink-app \
-    && wasm-pack build --target web --mode no-install --out-dir ../../web/pkg --no-default-features --release
+FROM web-toolchain AS web-builder
+
+ARG TARGETPLATFORM
+
+WORKDIR /usr/src/drafft-ink
+
+COPY --link --from=source /usr/src/drafft-ink /usr/src/drafft-ink
+
+RUN --mount=type=cache,id=cargo-registry-${TARGETPLATFORM},target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=cargo-git-${TARGETPLATFORM},target=/usr/local/cargo/git,sharing=locked \
+    --mount=type=cache,id=cargo-target-web-${TARGETPLATFORM},target=/usr/src/target,sharing=locked \
+    CARGO_TARGET_DIR=/usr/src/target sh -c 'cd crates/drafftink-app && wasm-pack build --target web --mode no-install --out-dir ../../web/pkg --no-default-features --release'
 
 FROM python:3.13-alpine AS web
 
@@ -127,7 +166,7 @@ LABEL org.opencontainers.image.title="drafft.ink web" \
     org.opencontainers.image.url="${SOURCE_REPOSITORY}" \
     io.drafftink.upstream-repository="${UPSTREAM_REPOSITORY}"
 
-COPY --from=web-builder --chown=appuser:appuser /usr/src/drafft-ink/web /site/web
+COPY --link --from=web-builder /usr/src/drafft-ink/web /site/web
 
 USER appuser
 
@@ -157,8 +196,8 @@ LABEL org.opencontainers.image.title="drafftink-docker" \
     org.opencontainers.image.url="${SOURCE_REPOSITORY}" \
     io.drafftink.upstream-repository="${UPSTREAM_REPOSITORY}"
 
-COPY --from=server-builder /usr/src/drafft-ink/target/release/drafftink-server /usr/local/bin/drafftink-server
-COPY --from=web-builder /usr/src/drafft-ink/web /usr/share/nginx/html
+COPY --link --from=server-builder /usr/local/bin/drafftink-server /usr/local/bin/drafftink-server
+COPY --link --from=web-builder /usr/src/drafft-ink/web /usr/share/nginx/html
 COPY nginx/bundled.conf /etc/nginx/nginx.conf
 COPY docker/bundled-entrypoint.sh /usr/local/bin/bundled-entrypoint.sh
 
