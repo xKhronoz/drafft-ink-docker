@@ -157,8 +157,8 @@ Published image tags:
 - `docker.io/<DOCKERHUB_USERNAME>/drafft-ink-docker:web`
 - `docker.io/<DOCKERHUB_USERNAME>/drafft-ink-docker:web-latest`
 - `docker.io/<DOCKERHUB_USERNAME>/drafft-ink-docker:web-vX.Y.Z`
-- `docker.io/<DOCKERHUB_USERNAME>/drafftink-docker:latest`
-- `docker.io/<DOCKERHUB_USERNAME>/drafftink-docker:vX.Y.Z`
+- `docker.io/<DOCKERHUB_USERNAME>/drafft-ink-docker:latest`
+- `docker.io/<DOCKERHUB_USERNAME>/drafft-ink-docker:vX.Y.Z`
 
 Required repository secrets:
 
