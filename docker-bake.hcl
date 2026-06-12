@@ -76,8 +76,8 @@ target "bundled" {
   inherits = ["_common"]
   target = "bundled"
   tags = [
-    "docker.io/${DOCKERHUB_NAMESPACE}/drafftink-docker:latest",
-    "docker.io/${DOCKERHUB_NAMESPACE}/drafftink-docker:${RELEASE_TAG}",
+    "docker.io/${DOCKERHUB_NAMESPACE}/drafft-ink-docker:latest",
+    "docker.io/${DOCKERHUB_NAMESPACE}/drafft-ink-docker:${RELEASE_TAG}",
   ]
   cache-from = ["type=gha,scope=drafftink-bundled"]
   cache-to = ["type=gha,mode=max,scope=drafftink-bundled"]

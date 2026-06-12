@@ -152,5 +152,5 @@ jobs:
             - `docker.io/${{ secrets.DOCKERHUB_USERNAME }}/drafft-ink-docker:web`
             - `docker.io/${{ secrets.DOCKERHUB_USERNAME }}/drafft-ink-docker:web-latest`
             - `docker.io/${{ secrets.DOCKERHUB_USERNAME }}/drafft-ink-docker:web-${{ needs.prepare.outputs.release_tag }}`
-            - `docker.io/${{ secrets.DOCKERHUB_USERNAME }}/drafftink-docker:latest`
-            - `docker.io/${{ secrets.DOCKERHUB_USERNAME }}/drafftink-docker:${{ needs.prepare.outputs.release_tag }}`
+            - `docker.io/${{ secrets.DOCKERHUB_USERNAME }}/drafft-ink-docker:latest`
+            - `docker.io/${{ secrets.DOCKERHUB_USERNAME }}/drafft-ink-docker:${{ needs.prepare.outputs.release_tag }}`
